@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>Norse Mythology Adventure RPG</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <script src="shared.js"></script>
+  <script>
+  function openPopup(text, img = null) {
+    const popupContainer = document.createElement('div');
+    popupContainer.className = 'popup-container';
+
+    const popupContent = document.createElement('div');
+    popupContent.className = 'popup-content';
+    popupContent.innerText = text;
+	if (img) popupContent.innerHTML = `<img src="${escapeHtml(img)}" style="height: 100vh;">`;
+    popupContainer.appendChild(popupContent);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    
+    //Close when you click anywhere
+    const closeOnClick = () => {
+      popupContainer.remove();
+      overlay.remove();
+    };
+    overlay.addEventListener('click', closeOnClick);
+    popupContainer.addEventListener('click', closeOnClick);
+    
+    document.body.appendChild(overlay);
+    document.body.appendChild(popupContainer);
+  }
+  
+  function createProgressBar(cur, max, width, height, classes, altText) {
+    const filledPercent = (cur / max * 100).toFixed(0) + '%';
+    const progressBar = document.createElement('div');
+    progressBar.classList.add('progress-bar');
+    progressBar.classList.add(classes);
+    progressBar.style.width = width + 'px';
+    progressBar.style.height = height + 'px';
+    progressBar.addEventListener('click', function() {
+      openPopup(`${altText}\n${cur} / ${max}\n(${filledPercent})`);
+    })
+
+    const filledPortion = document.createElement('div');
+    filledPortion.classList.add('filled-portion');
+    filledPortion.classList.add(classes);
+    filledPortion.style.width = filledPercent;
+    progressBar.appendChild(filledPortion);
+    return progressBar;
+  }
+  
+  function adjustBackground() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const imageWidth = 384;
+    const imageHeight = 768;
+    const imageAspectRatio = imageWidth / imageHeight;
+    const screenAspectRatio = screenWidth / screenHeight;
+    
+    let newBackgroundSize;
+    let newBackgroundPosition = "center";
+  
+    if (screenAspectRatio > imageAspectRatio) {
+      // Screen is wider than the image
+      const newImageWidth = screenHeight * imageAspectRatio;
+      const blackBarsWidth = (screenWidth - newImageWidth) / 2;
+      newBackgroundSize = "contain";
+      newBackgroundPosition = blackBarsWidth + "px center";
+    } else {
+      // Screen is taller or equal to the image
+      newBackgroundSize = "cover";
+    }
+  
+    document.body.style.backgroundSize = newBackgroundSize;
+    document.body.style.backgroundPosition = newBackgroundPosition;
+  }
+  </script>
+</head>
+<body>
+  <div id="choose-character-screen" class="screen">
+    <h1>Choose Your Character</h1>
+    <ul id="character-options" class="character-options"></ul>
+  </div>
+  
+  <div id="story-screen" class="screen" style="background: none; text-align: center;">
+    <h1 id="chapter-title" class="outlined-text"></h1>
+    <h2 id="location" class="outlined-text"></h2>
+    <p id="story-text" class="thin-outlined-text"></p>
+    <p><small class="thin-outlined-text"><span id='story-not-read'>Tap on the text when done reading</span> <span id='story-read'>&checkmark; Waiting for other players</span></small></p>
+  </div>
+  
+  <div id="battle-screen" class="screen">
+    <div class="enemies" id="enemies"></div>
+    <div class="log" id="battle-log"></div>
+    <div class="players" id="players"></div>
+    <div id="battle-options" class="battle-options"></div>
+  </div>
+  
+  <div id="choose-ability-screen" class="screen">
+    <h1>Choose <span id="choose-ability-count-phrase">an Ability</span></h1>
+    <ul id="ability-options" class="ability-options"></ul>
+  </div>
+  
+  <br><br><br>
+  <div style="padding: 20px; position: fixed; bottom: 0; width: calc(100% - 40px);">
+    <form action="/leave" method="POST" style="display: inline-block;">
+      <button type="submit">Leave Game</button>
+    </form>
+    <div id="is-host" style="display: inline-block;">
+      <span>You are the host.</span>
+      <form action="/stop" method="POST" style="display: inline-block;">
+        <button type="submit">Stop Game</button>
+      </form>
+    </div>
+	<div class="background-image-button thin-outlined-text" onclick="backgroundImagePopup()">View image</div>
+  </div>
+  
+  <script>
+    function backgroundImagePopup() {
+	  openPopup(null, document.body.style.backgroundImage.replace(/^url\(['"]?(.*?)['"]?\)$/, '$1'));
+	}
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("story-screen").addEventListener("click", async () => {
+        await fetchData("/act", { method: "POST" });
+        document.getElementById("story-not-read").style.display = "none";
+        document.getElementById("story-read").style.display = "";
+        updateGame();
+      });
+
+      let resizeTimer = {}; //Debounce because running scripts while resizing can be slow, especially since every pixel the cursor moves is another resize event, depending on the browser
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(adjustBackground, 50);
+      });
+
+      function showScreen(screenId) {
+        document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
+        document.getElementById(screenId).classList.add("active");
+      }
+
+      async function fetchData(endpoint, options = {}) {
+        const response = await fetch(endpoint, options);
+        return response.json();
+      }
+
+      function updateCharacterOptions(data) {
+        const options = document.getElementById("character-options");
+        options.innerHTML = '';
+        data.playerSelectableSpecies.forEach(species => {
+          const li = document.createElement("li");
+          li.textContent = species.name + ": " + species.description;
+          li.addEventListener("click", async () => {
+            await fetchData("/chooseSpecies", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ species: species.name })
+            });
+            updateGame();
+          });
+          options.appendChild(li);
+        });
+      }
+
+      function setBackground(imageFilename) {
+        if (imageFilename) {
+          document.body.style.backgroundImage = `url('/assets/${imageFilename}')`;
+          adjustBackground();
+		  [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "inline-block");
+        } else {
+          document.body.style.backgroundImage = "url('/assets/blank.png')";
+		  [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "none");
+        }
+      }
+
+      function updateStoryScreen(data) {
+        document.getElementById("chapter-title").textContent = data.story.chapterTitle;
+        document.getElementById("location").textContent = data.story.location;
+        document.getElementById("story-text").textContent = data.story.storyText;
+        document.getElementById("story-not-read").style.display = "";
+        document.getElementById("story-read").style.display = "none";
+        setBackground(data.story.imageFilename);
+      }
+
+      function updateBattleScreen(data) {
+        const enemies = document.getElementById("enemies");
+        const players = document.getElementById("players");
+        const battleLog = document.getElementById("battle-log");
+        const battleOptions = document.getElementById("battle-options");
+        setBackground(data.imageFilename);
+
+        enemies.innerHTML = '';
+        players.innerHTML = '';
+        battleLog.innerHTML = data.log.join('<br>');
+		battleLog.scrollTop = battleLog.scrollHeight;
+
+        function addToEntityList(entity, list) {
+          const div = document.createElement("div");
+          div.textContent = `${entity.name} (${entity.species})`;
+          div.appendChild(createProgressBar(entity.health, entity.maxHealth, 100, 20, "health", `${entity.name}'s Health`));
+          div.appendChild(createProgressBar(entity.energy, entity.maxEnergy, 100, 20, "energy", `${entity.name}'s Energy`));
+          if (entity.buffs.length) {
+            const buffsDiv = document.createElement("div");
+			buffsDiv.classList.add("status-effects");
+			buffsDiv.innerText = "Affected by:\n" + entity.buffs.map(buff => `${buff.name} for ${buff.remainingDuration} round${buff.remainingDuration == 1 ? '' : 's'}`).join('\n');
+            div.appendChild(buffsDiv);
+          }
+          list.appendChild(div);
+        }
+
+        data.enemies.forEach(entity => addToEntityList(entity, enemies));
+        data.players.forEach(entity => addToEntityList(entity, players));
+
+        battleOptions.innerHTML = '';
+        if (data.isCurrentPlayerTurn) {
+          const units = [...data.players, ...data.enemies] //Index-based. Kinda ugly.
+          data.abilities.forEach(ability => {
+            const abilityDiv = document.createElement("div");
+            abilityDiv.classList.add('ability-button-block');
+            const button = document.createElement("button");
+            button.classList.add('ability-button');
+            const targetPhrase = ability.target == 'allFriends' ? ' on all allies' : ability.target == 'allFoes' ? ' on all enemies' : ability.target === undefined ? '' : (' on ' + units[ability.target].name)
+            button.textContent = `Use ${ability.name}${targetPhrase}`;
+            const infoButton = document.createElement("button");
+            infoButton.textContent = "?";
+            infoButton.classList.add('ability-info-button');
+            const usesPhrase = ability.usesRemaining === 'infinity' ? 'Unlimited uses' : `Uses remaining in this battle: ${ability.usesRemaining}`;
+            infoButton.addEventListener("click", () => openPopup(`${ability.name}\n\n${ability.description}\n\nEnergy cost: ${ability.energyCost}\n${usesPhrase}`));
+            
+            button.addEventListener("click", async () => {
+              await fetchData("/act", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ ability: ability.name, target: typeof ability.target === "number" ? ability.target : undefined })
+              });
+              updateGame();
+            });
+            abilityDiv.appendChild(button);
+            abilityDiv.appendChild(infoButton);
+            battleOptions.appendChild(abilityDiv);
+          });
+        }
+      }
+
+      function updateAbilityOptions(data) {
+        document.getElementById("choose-ability-count-phrase").textContent = data.newAbilitiesNeeded > 1 ? data.newAbilitiesNeeded + " Abilities" : "an Ability";
+        const options = document.getElementById("ability-options");
+        options.innerHTML = '';
+        data.newAbilities.forEach(ability => {
+          const li = document.createElement("li");
+          li.textContent = `${ability.name}: ${ability.description}`;
+          li.addEventListener("click", async () => {
+            await fetchData("/chooseAbility", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ ability: ability.name })
+            });
+            updateGame();
+          });
+          options.appendChild(li);
+        });
+      }
+
+      let lastState = {};
+      async function updateGame() {
+        const data = await fetchData("/gameState");
+        if (lastState == JSON.stringify(data)) return; //Don't touch the DOM if nothing changed
+        lastState = JSON.stringify(data);
+        if (!data.isHost) document.getElementById("is-host")?.remove();
+        switch (data.mode) {
+          case "chooseCharacter":
+            showScreen("choose-character-screen");
+            updateCharacterOptions(data);
+            break;
+          case "story":
+            showScreen("story-screen");
+            if (!data.story) data.story = { chapterTitle: "The End", storyText: "The game has ended.\nThere is no more.\nI really hope that you weren't bored." };
+            updateStoryScreen(data);
+            break;
+          case "battle":
+            showScreen("battle-screen");
+            updateBattleScreen(data);
+            break;
+          case "chooseAbility":
+            showScreen("choose-ability-screen");
+            updateAbilityOptions(data);
+            break;
+          case "restart": //There's no game instance
+            window.location.reload();
+            break;
+        }
+      }
+
+      updateGame();
+      setInterval(updateGame, 1000); // Periodically update the game state
+    });
+  </script>
+</body>
+</html>

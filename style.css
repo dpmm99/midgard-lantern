@@ -1,0 +1,133 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgb(25, 25, 25);
+  background-image: url('/assets/blank.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  font-family: Arial, sans-serif;
+  color: white;
+}
+.outlined-text {
+  text-shadow: -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000, -3px 0 0 #000, 3px 0 0 #000, 0 3px 0 #000, 0 -3px 0 #000;
+  user-select: none;
+}
+.thin-outlined-text {
+  text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, -2px 0 0 #000, 2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -3px -2px 0 #000, 3px -2px 0 #000, -3px 2px 0 #000, 3px 2px 0 #000;
+  user-select: none;
+}
+.screen {
+  display: none;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.screen.active {
+  display: block;
+}
+.log {
+  height: 12em;
+  max-height: 12em;
+  overflow-y: auto;
+  border: 1px solid white;
+  padding: 10px;
+  margin: 10px 0;
+}
+.character-options, .ability-options {
+  list-style: none;
+  padding: 0;
+  user-select: none;
+}
+.character-options li, .ability-options li {
+  cursor: pointer;
+  margin: 10px 0;
+}
+.character-options li:hover, .ability-options li:hover {
+  text-decoration: underline;
+}
+.enemies, .players {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+.battle-options {
+  margin-top: 20px;
+}
+.popup-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background-color: black;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  min-width: 70vw;
+}
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 9998;
+}
+.progress-bar {
+  background-color: #ddd;
+  overflow: hidden;
+  margin: auto;
+  cursor: pointer;
+  border-radius: 5px;
+  margin-top: 2px;
+}
+.filled-portion {
+  height: 100%;
+}
+.filled-portion.health {
+  background-color: #0f0;
+}
+.progress-bar.health {
+  background-color: #a00;
+}
+.filled-portion.energy {
+  background-color: #08f;
+}
+.progress-bar.energy {
+  background-color: #555;
+}
+.ability-button-block {
+  display: inline-block;
+  margin-right: 15px;
+}
+.ability-button {
+  background-color: #222;
+  color: #8cf;
+  padding: 5px 10px;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.ability-info-button {
+  background-color: #222;
+  color: #fcf;
+  padding: 5px 5px;
+  border: none;
+  cursor: pointer;
+  font-size: small;
+  margin-left: 3px;
+  border-radius: 5px;
+}
+.background-image-button {
+  float: inline-end;
+  cursor: pointer;
+  display: none;
+}
+.status-effects {
+  margin-top: 10px;
+}

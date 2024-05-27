@@ -1,0 +1,17 @@
+{
+  "name": "norselangame",
+  "version": "1.0.0",
+  "description": "just trying it out",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "DeProgrammer",
+  "license": "CC0-1.0",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3"
+  }
+}
