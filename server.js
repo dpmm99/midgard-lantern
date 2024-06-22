@@ -47,8 +47,8 @@ class Game {
     this.started = false;
     this.driver = null;
     this.logs = []
-    this.log = (message) => this.logs.push(message)
-    const defaultXpMap = [0, 0, 0, 5, 9]; //Amount of XP you need before you can obtain your <1+index>th ability
+    this.log = (message) => { this.logs.push(message); console.log(message)}
+    const defaultXpMap = [0, 0, 0, 0, 5, 9]; //Amount of XP you need before you can obtain your <1+index>th ability
     this.playerSelectableSpecies = [
       new Species("Tourist", 25, 25, defaultXpMap, "A classic tourist. Bold and energetic...maybe too much."),
       new Species("Senior", 25, 20, defaultXpMap, "An older person. Experienced, but lower energy than your average tourist."),
@@ -56,6 +56,8 @@ class Game {
     ];
     this.playerSelectableAbilities = [
       //Parameters: name, target, multi, usesPerBattle, energyCost, effect, buffEffect(abil, targ, hurt|heal|drain|rest|attack|help [string], amount), buffRounds = 1, description, limitToSpeciesName, minXP, useCondition(self, target [null for prechecks])
+      //Freebie: one enemy attack
+      new Ability("Bop", "foe", false, "infinity", 4, (self, target, abil) => { target.hurt(2, self); }, null, null, "Strike a foe with poor efficiency using your untrained hand."),
       //Starter: one enemy attack
       new Ability("Punch", "foe", false, "infinity", 3, (self, target, abil) => { target.hurt(3, self); }, null, null, "Extend your extremity extremely quickly."),
       //Starter: self heal
@@ -106,7 +108,7 @@ class Game {
   getBattleOptions(player) { //TODO: Rewrite this function less terribly
     return this.driver?.getBattleOptions(player) ?? [];
   }
-  
+ 
   getPlayers() { //Partial data, for UI display purposes
     return this.driver.getCurrentBattle().players.map(p => ({ name: p.name, species: p.species, health: p.health, maxHealth: p.maxHealth, energy: p.energy, maxEnergy: p.maxEnergy, buffs: p.activeEffects.map(q => ({ name: q.ability.name, remainingDuration: q.remainingDuration })) }))
   }
@@ -118,6 +120,7 @@ class Game {
   setPlayerSpecies(player, species) { //TODO: make this kind of code consistent
     if (player.species === "None") {
       player.setSpecies(this.getSpecies(species))
+      this.grantAbility(player, "Bop");
       this.log(`${player.name} chose ${species}.`);
     }
   }
@@ -158,6 +161,7 @@ class Game {
       player.maxHealth = player.health = 0; //So they'll be skipped in all battles
       const battle = this.driver.getCurrentBattle();
       if (battle?.isCurrentTurn(player)) battle.act(); //Skip that player if it was their turn
+      this.log(name + " gave up on the mission.")
     }
   }
 
@@ -167,6 +171,29 @@ class Game {
   
   start() {
     this.started = true
+    //Some adjustments for difficulty: more health, better punch, longer buffs/debuffs, more self-heals
+    if (this.users.length == 1) {
+      for (let cls of this.playerSelectableSpecies) cls.health += 10;
+      this.playerSelectableAbilities = this.playerSelectableAbilities.filter(p => p.target != "friend");
+      for (let abil of this.playerSelectableAbilities) abil.buffRounds++;
+      this.playerSelectableAbilities.find(abil => abil.name == "Bandage").usesPerBattle++;
+      //Nerd and Senior need another ability each, or the game can't progress.
+      this.playerSelectableAbilities.push(new Ability("Introspect", "self", false, "infinity", 6, (self, target, abil) => { },
+        (abil, targ, type, amount) => { return type == 'hurt' ? Math.ceil(amount * 2) : amount; }, 3, "You're in your element when alone, so you deal more damage for a while.", "Nerd", 0),)
+      this.playerSelectableAbilities.push(new Ability("Go It Alone", "self", false, "infinity", 6, (self, target, abil) => { },
+        (abil, targ, type, amount) => { return type == 'hurt' ? Math.ceil(amount * 1.5) : amount; }, 5, "You're comfortable with being alone and without distractions, so you deal more damage for a while.", "Senior", 0),)
+    }
+    if (this.users.length <= 2) {
+      for (let cls of this.playerSelectableSpecies) cls.health += 5;
+      for (let cls of this.playerSelectableSpecies) cls.energy += 3;
+      this.playerSelectableAbilities.find(abil => abil.name == "Punch").effect = (self, target, abil) => { target.hurt(4, self); };
+      this.playerSelectableAbilities.find(abil => abil.name == "Bandage").usesPerBattle++;
+    }
+    if (this.users.length <= 3) {
+      for (let cls of this.playerSelectableSpecies) cls.health += 3;
+      for (let abil of this.playerSelectableAbilities) abil.buffRounds++;
+      this.playerSelectableAbilities.find(abil => abil.name == "Bandage").usesPerBattle++;
+    }
     this.driver = new GameDriver(this.buildStoryElements(), this.users, this.log)
     this.driver.startGame();
   }
@@ -185,15 +212,15 @@ class Game {
       (abil, targ, type, amount) => { return type == 'hurt' ? Math.ceil(amount / 2) : amount; }, 3) //50% defense buff for 3 rounds
     const uppercut = new Ability("Uppercut", "foe", false, "infinity", 4, (self, target, abil) => { target.hurt(5, self); })
     const slash = new Ability("Slash", "foe", true, "infinity", 7, (self, target, abil) => { target.hurt(4, self); })
-    const confuse = new Ability("Confuse", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(4, self); }) //You hurt yourself in your confusion!
-    const perplex = new Ability("Perplex", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(6, self); })
-    const malfunction = new Ability("Malfunction", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(3, self); self.hurt(3, self); })
+    const confuse = new Ability("Confuse", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(3, self); }) //You hurt yourself in your confusion!
+    const perplex = new Ability("Perplex", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(5, self); })
+    const malfunction = new Ability("Malfunction", "foe", false, "infinity", 0, (self, target, abil) => { target.hurt(4, self); self.hurt(3, self); })
     const toxify = new Ability("Toxify", "foe", true, "infinity", 3, (self, target, abil) => { target.hurt(3, self); },
       (abil, targ, type, amount) => { return type == 'attack' ? Math.ceil(amount / 2) : amount; }, 2) //Hurts AND 50% damage debuff for 2 rounds
     const bandage = new Ability("Bandage", "self", false, 1, 4, (self, target, abil) => { self.heal(8, self); }, undefined, undefined, undefined, undefined, undefined, (self) => self.health < self.maxHealth)
     const breathe = new Ability("Breathe", "self", false, "infinity", 0, (self, target, abil) => { self.rest(5); }, undefined, undefined, undefined, undefined, undefined, (self) => self.energy < self.maxEnergy)
     const breatheDeep = new Ability("Breathe Deep", "self", false, "infinity", 0, (self, target, abil) => { self.rest(9); }, undefined, undefined, undefined, undefined, undefined, (self) => self.energy < self.maxEnergy)
-    const absorbMaterial = new Ability("Absorb Material", "self", false, "infinity", 5, (self, target, abil) => { self.heal(14, self); }, undefined, undefined, undefined, undefined, undefined, (self) => self.health < self.maxHealth)
+    const absorbMaterial = new Ability("Absorb Material", "self", false, "infinity", 15, (self, target, abil) => { self.heal(14, self); }, undefined, undefined, undefined, undefined, undefined, (self) => self.health < self.maxHealth)
     
     for (let ability of [punch, crash, burn, slam, magicShield, uppercut, slash, confuse, perplex, malfunction, toxify, bandage, breathe, breatheDeep, absorbMaterial]) ability.log = this.log;
     
@@ -201,14 +228,14 @@ class Game {
     const hostileSpirit = new Entity("Embodiment of Hostility", "Spirit", 8, 6, [punch, breathe])
     const defenseSpirit = new Entity("Embodiment of Defense", "Spirit", 14, 8, [magicShield, breathe])
     const violentSpirit = new Entity("Embodiment of Violence", "Spirit", 10, 8, [punch, burn, breathe])
-    const giant = new Entity("Giant", "Giant", 20, 10, [punch, slam, breathe])
+    const giant = new Entity("Giant", "Giant", 18, 10, [punch, slam, breathe])
     const volcanicRock = new Entity("Rock", "Volcanic Debris", 6, 0, [crash])
     const volcanicAsh = new Entity("Ash", "Volcanic Debris", 12, 9, [toxify])
     const volcanicLava = new Entity("Lava", "Volcanic Debris", 4, 30, [burn])
     const einheri = new Entity("Warrior", "Einheri", 28, 20, [uppercut, slash, bandage, breatheDeep])
     const riddle = new Entity("Riddle", "Puzzle", 10, 99, [bandage, bandage, confuse, perplex])
     const puzzle = new Entity("Puzzle", "Puzzle", 12, 99, [bandage, bandage, bandage, confuse, perplex, malfunction])
-    const primordial = new Entity("Shapeless Form", "Primordial Being", 40, 99, [slash, toxify, breathe, absorbMaterial])
+    const primordial = new Entity("Shapeless Form", "Primordial Being", 35, 80, [slash, toxify, breathe, absorbMaterial])
     
     //StoryElements
     return [
@@ -432,7 +459,7 @@ class Battle {
     this.log = log;
     this.players = [];
     this.enemies = this.numberTheNames(enemies.map(clone)); // List of Entity instances--cloned because they have state
-	this.enemies.forEach(p => p.abilities = p.abilities.map(clone)); //Slightly deeper clone because the abilities carry state, and I used the same Entity objects for various battles
+  this.enemies.forEach(p => p.abilities = p.abilities.map(clone)); //Slightly deeper clone because the abilities carry state, and I used the same Entity objects for various battles
     this.currentTurn = 0; // Whose turn it is
   }
 
@@ -539,7 +566,7 @@ class Battle {
       this.log(`${entity.name} used ${action.ability.name} on ${targetsFoe ? 'all enemies' : 'all allies'}!`);
     } else if (action.ability.target === 'self') {
       action.target = entity;
-	  this.log(`${entity.name} used ${action.ability.name}!`);
+    this.log(`${entity.name} used ${action.ability.name}!`);
     }
     else this.log(`${entity.name} used ${action.ability.name} on ${action.target.name}!`);
     
@@ -550,8 +577,8 @@ class Battle {
     this.handleTurn(playerAction);
     this.nextTurn();
     
-	let tries = 0; //Prevent infinite loop just in case I set up a soft-lock situation.
-	do {
+  let tries = 0; //Prevent infinite loop just in case I set up a soft-lock situation.
+  do {
       //Fast forward through enemy turns
       while (this.isEnemyTurn()) {
         this.getCurrentTurnEntity().startTurn();
@@ -560,22 +587,26 @@ class Battle {
       }
       
       //Fast forward through defeated players and players who can't do anything (if we end back up on an enemy turn, the caller has to handle it.)
-  	  let currentEntity = null;
-  	  let noBattleOptions = false;
+      let currentEntity = null;
+      let noBattleOptions = false;
       while ((currentEntity = this.getCurrentTurnEntity()).health <= 0 | (noBattleOptions = !this.getBattleOptions(currentEntity).length)) { //This is a single | on purpose. Do not short circuit!
         currentEntity.startTurn();
-  	    //Humans with no options get one free energy per turn. Maybe they didn't take the breathe (rest) ability.
-  	    if (noBattleOptions && this.currentTurn < this.players.length && currentEntity.energy < currentEntity.maxEnergy) currentEntity.energy++;
-        this.nextTurn();
-		if (this.isLost() || this.isWon()) break; //I managed to get an infinite loop by having all enemies run out of health as I ran out of energy. :)
+        //Humans with no options get one free energy per turn. Maybe they didn't take the breathe (rest) ability.
+        if (noBattleOptions && this.currentTurn < this.players.length) {
+          if (currentEntity.energy < currentEntity.maxEnergy) currentEntity.energy++;
+          if (currentEntity.health < currentEntity.maxHealth) currentEntity.health++;
+          this.log(currentEntity.name + " cannot help but rest a tiny bit.")
+        }
+       this.nextTurn();
+       if (this.isLost() || this.isWon()) break; //I managed to get an infinite loop by having all enemies run out of health as I ran out of energy. :)
       }
     } while (this.currentTurn >= this.players.length && !this.isLost() && !this.isWon() && ++tries < 10); //Enemies keep taking turns until at least one human can.
-	
-	if (tries >= 100) {
+  
+    if (tries >= 100) {
       this.log("It seems no players are able to act even after being given free energy. Please reset the game if nobody has any options. Resetting the player combat attributes as a last resort.");
-	  this.players.forEach(p => p.combatReset());
-	}
-	
+      this.players.forEach(p => p.combatReset());
+    }
+  
     //Start the next player's turn (because buffs/debuffs must wear off BEFORE they make their move)
     this.getCurrentTurnEntity().startTurn();
   }
@@ -636,9 +667,9 @@ class GameDriver {
     if (this.currentBattleIndex < storyElement.battles.length) {
       const battle = this.getCurrentBattle()
       if (!battle.started) {
-		this.log(`Battle ensues! Your ${battle.enemies.length == 1 ? "lone opponent is" : "opponents are"} ${wordList(battle.enemies.map(p => p.name))}.`)
-		battle.start(this.players); //Just for internal state; shouldn't affect the players/UI, so it doesn't matter that I don't call it immediately after currentBattleIndex++
-	  }
+    this.log(`Battle ensues! Your ${battle.enemies.length == 1 ? "lone opponent is" : "opponents are"} ${wordList(battle.enemies.map(p => p.name))}.`)
+    battle.start(this.players); //Just for internal state; shouldn't affect the players/UI, so it doesn't matter that I don't call it immediately after currentBattleIndex++
+    }
       if (!battle.isCurrentTurn(playerAction.player)) return; //Wrong player? Do nothing.
       if (playerAction.ability !== undefined) battle.act(playerAction);
       if (battle.isLost()) {
@@ -686,7 +717,7 @@ app.use(devErrorHandler)
 app.get('/share', catchErrors(async (req, res) => {
   const hostWithPort = 'http://' + req.hostname + ':' + port
   const qrCodeDataUrl = await qrcode.toDataURL(hostWithPort)
-  res.send('Join the game at ' + hostWithPort + '!<br>\n<img src="' + qrCodeDataUrl + '">')
+  res.send(htmlHeader + '<center><h2>Join the game at ' + hostWithPort + '!</h2></center><br>\n<center><img src="' + qrCodeDataUrl + '"></center>')
 }))
 
 app.get('/shared.js', catchErrors(async (req, res) => {
@@ -697,20 +728,23 @@ app.get('/style.css', catchErrors(async (req, res) => {
   res.sendFile('style.css', {root: __dirname})
 }))
 
-function getPreGamePage(name) {
+async function getPreGamePage(name, req) {
   const isHost = game.isHost(name);
+  const hostWithPort = 'http://' + req.hostname + ':' + port
+  const qrCodeDataUrl = await qrcode.toDataURL(hostWithPort)
   return `${htmlHeader}
     <div style="padding: 20px">
-    <h2 style='margin-top: 0'>Welcome, ${name}!</h2>
-    <h3>Players:</h3>
+    <h3 style='margin-top: 0'>Welcome, ${name}!</h3>
+    <h4>Players:</h4>
     <ul id="player-list"><li>Refreshing...</li></ul>
     ${isHost ? `
-      <h3>You are the host.</h3>
+      <h4>You are the host.</h4>
       <form action="/start" method="POST">
         <button type="submit" style='margin-bottom: 10px;'>Start Game</button>
       </form>
-      <a href='/share' target='_new' style='color: white;'>Click to share</a>
     ` : ''}
+    <br><br><h1>Join a mythological text adventure game:</h1>
+    <center><img src="${qrCodeDataUrl}" style="width: 80vw"></center>
     <br><br><br>
     <form action="/leave" method="POST">
       <button type="submit">Leave Game</button>
@@ -723,8 +757,8 @@ function getPreGamePage(name) {
             .then(data => {
               const playerList = document.getElementById('player-list');
               playerList.innerHTML = data.players.map(player => '<li>' + escapeHtml(player) + '</li>').join('');
-              if (data.started) {
-                window.location.reload(); //The game is ready, so we'll stop watching for players
+              if (data.started || !data.players.length) {
+                window.location.reload(); //The game is ready or server restarted, so we'll stop watching for players
               }
             });
         }
@@ -735,19 +769,20 @@ function getPreGamePage(name) {
 }
 
 app.get('/', catchErrors(async (req, res) => {
+  res.set('Cache-Control', 'no-cache');
   let name = req.cookies.username
   if (!name || !game.users.length || (!game.started && !game.users.includes(name))) {
     res.send(`${htmlHeader}
       <form action="/join" method="POST" style="padding: 20px">
         <label for="name">Enter your name:</label>
         <input type="text" id="name" name="name" value="${shared.escapeHtml(req.cookies.username)}" required>
-        <button type="submit">Join Game</button>
+        <button type="submit">Join Game</button><br>
       </form>
     `)
   } else if (game.started && game.getPlayer(name)) res.sendFile('InGame.html', {root: __dirname})
   else if (game.started) res.send(`${htmlHeader}
     Please wait for this game to finish, then refresh the page.`)
-  else res.send(getPreGamePage(name))
+  else res.send(await getPreGamePage(name, req))
 }))
 
 app.post('/join', catchErrors(async (req, res) => {
@@ -760,24 +795,28 @@ app.post('/join', catchErrors(async (req, res) => {
 }))
 
 app.post('/act', catchErrors(async (req, res) => { //For during-game actions, e.g., saying you've read the story content, choosing an ability to use in battle, or selecting a new ability
+  res.set('Cache-Control', 'no-cache');
   const player = game.getPlayer(req.cookies.username)
   game.driver?.advance({ player, ability: req.body.ability, target: req.body.target }) //TODO: Don't directly access game.driver in the Web part of the code
   res.send('{}')
 }))
 
 app.post('/chooseAbility', catchErrors(async (req, res) => { //If the user doesn't have enough abilities for their current XP, they should call this with the ability they want to take
+  res.set('Cache-Control', 'no-cache');
   const player = game.getPlayer(req.cookies.username)
   game.grantAbility(player, req.body.ability)
   res.send('{}')
 }))
 
 app.post('/chooseSpecies', catchErrors(async (req, res) => { //For the user to pick their class/archetype
+  res.set('Cache-Control', 'no-cache');
   const player = game.getPlayer(req.cookies.username)
   game.setPlayerSpecies(player, req.body.species)
   res.send('{}')
 }))
 
 app.get('/gameState', catchErrors(async (req, res) => { //Show the user one screen; in order of descending priority: character select, ability select, battle, story
+  res.set('Cache-Control', 'no-cache');
   const player = game.getPlayer(req.cookies.username)
   const isHost = game.isHost(req.cookies.username)
   if (!player) {
@@ -803,7 +842,7 @@ app.get('/gameState', catchErrors(async (req, res) => { //Show the user one scre
       log: game.logs.slice(-10), //Just the last 10 log entries for now
       isCurrentPlayerTurn: game.isPlayerBattleTurn(player),
       abilities: game.getBattleOptions(player),
-	  imageFilename: game.getStory()?.imageFilename, //If the user refreshes, I still want the background to be there
+    imageFilename: game.getStory()?.imageFilename, //If the user refreshes, I still want the background to be there
       isHost
     })
   } else {
@@ -825,6 +864,7 @@ app.post('/leave', catchErrors(async (req, res) => {
 }))
 
 app.get('/players', catchErrors(async (req, res) => {
+  res.set('Cache-Control', 'no-cache');
   res.json({ players: game.getUsers(), started: game.started })
 }))
 

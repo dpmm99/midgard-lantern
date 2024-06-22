@@ -15,7 +15,7 @@
     const popupContent = document.createElement('div');
     popupContent.className = 'popup-content';
     popupContent.innerText = text;
-	if (img) popupContent.innerHTML = `<img src="${escapeHtml(img)}" style="height: 100vh;">`;
+  if (img) popupContent.innerHTML = `<img src="${escapeHtml(img)}" style="height: 100vh;">`;
     popupContainer.appendChild(popupContent);
 
     const overlay = document.createElement('div');
@@ -116,13 +116,13 @@
         <button type="submit">Stop Game</button>
       </form>
     </div>
-	<div class="background-image-button thin-outlined-text" onclick="backgroundImagePopup()">View image</div>
+  <div class="background-image-button thin-outlined-text" onclick="backgroundImagePopup()">View image</div>
   </div>
   
   <script>
     function backgroundImagePopup() {
-	  openPopup(null, document.body.style.backgroundImage.replace(/^url\(['"]?(.*?)['"]?\)$/, '$1'));
-	}
+    openPopup(null, document.body.style.backgroundImage.replace(/^url\(['"]?(.*?)['"]?\)$/, '$1'));
+  }
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("story-screen").addEventListener("click", async () => {
         await fetchData("/act", { method: "POST" });
@@ -171,10 +171,10 @@
         if (imageFilename) {
           document.body.style.backgroundImage = `url('/assets/${imageFilename}')`;
           adjustBackground();
-		  [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "inline-block");
+      [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "inline-block");
         } else {
           document.body.style.backgroundImage = "url('/assets/blank.png')";
-		  [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "none");
+      [...document.getElementsByClassName("background-image-button")].forEach(p => p.style.display = "none");
         }
       }
 
@@ -197,7 +197,7 @@
         enemies.innerHTML = '';
         players.innerHTML = '';
         battleLog.innerHTML = data.log.join('<br>');
-		battleLog.scrollTop = battleLog.scrollHeight;
+    battleLog.scrollTop = battleLog.scrollHeight;
 
         function addToEntityList(entity, list) {
           const div = document.createElement("div");
@@ -206,8 +206,8 @@
           div.appendChild(createProgressBar(entity.energy, entity.maxEnergy, 100, 20, "energy", `${entity.name}'s Energy`));
           if (entity.buffs.length) {
             const buffsDiv = document.createElement("div");
-			buffsDiv.classList.add("status-effects");
-			buffsDiv.innerText = "Affected by:\n" + entity.buffs.map(buff => `${buff.name} for ${buff.remainingDuration} round${buff.remainingDuration == 1 ? '' : 's'}`).join('\n');
+      buffsDiv.classList.add("status-effects");
+      buffsDiv.innerText = "Affected by:\n" + entity.buffs.map(buff => `${buff.name} for ${buff.remainingDuration} round${buff.remainingDuration == 1 ? '' : 's'}`).join('\n');
             div.appendChild(buffsDiv);
           }
           list.appendChild(div);
@@ -218,6 +218,7 @@
 
         battleOptions.innerHTML = '';
         if (data.isCurrentPlayerTurn) {
+          battleOptions.textContent = 'Choose your move:\n';
           const units = [...data.players, ...data.enemies] //Index-based. Kinda ugly.
           data.abilities.forEach(ability => {
             const abilityDiv = document.createElement("div");
@@ -246,7 +247,9 @@
             abilityDiv.appendChild(infoButton);
             battleOptions.appendChild(abilityDiv);
           });
-        }
+        } else {
+          battleOptions.textContent = 'Waiting for your turn...';
+          }
       }
 
       function updateAbilityOptions(data) {
